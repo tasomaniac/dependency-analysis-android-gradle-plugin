@@ -7,6 +7,7 @@ plugins {
     id("com.gradle.plugin-publish") version "0.10.1"
     id("org.jetbrains.kotlin.jvm") version "1.3.61"
     `kotlin-dsl`
+    antlr
     id("com.bnorm.power.kotlin-power-assert") version "0.1.0"
 }
 
@@ -27,6 +28,19 @@ tasks.withType<KotlinCompile>().configureEach {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+}
+
+// https://docs.gradle.org/current/userguide/antlr_plugin.html
+tasks.generateGrammarSource {
+    /*
+     * Ignore implied package structure for .g4 files and instead use this for all generated source.
+     */
+    val pkg = "com.autonomousapps.internal.grammar"
+    outputDirectory = file("$buildDir/generated-src/antlr/main/${pkg.replace('.', '/')}")
+    arguments = arguments + listOf(
+        "-package", pkg,
+        "-Xexact-output-dir"
+    )
 }
 
 tasks.withType<KotlinCompile>().matching {
@@ -89,6 +103,9 @@ dependencies {
     }
     implementation("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.1.0") {
         because("For Kotlin ABI analysis")
+    }
+    antlr("org.antlr:antlr4:4.8") {
+        because("For source parsing")
     }
     implementation(files("libs/asm-$asmVersion.jar"))
 

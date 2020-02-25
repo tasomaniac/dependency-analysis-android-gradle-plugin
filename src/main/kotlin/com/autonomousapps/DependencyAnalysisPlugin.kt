@@ -251,6 +251,12 @@ class DependencyAnalysisPlugin : Plugin<Project> {
             inlineUsageReport.set(layout.buildDirectory.file(getInlineUsagePath(variantName)))
         }
 
+        val constantTask = tasks.register<JavaConstantFinderTask>("javaConstantFinder$variantTaskName") {
+            artifacts.set(artifactsReportTask.flatMap { it.output })
+            javaSourceFiles.setFrom(dependencyAnalyzer.javaSourceFiles)
+            constantUsageReport.set(layout.buildDirectory.file(getConstantUsagePath(variantName)))
+        }
+
         // Produces a report that lists all dependencies that contributed _used_ Android resources (based on a
         // best-guess heuristic). Is null for java-library projects.
         val androidResUsageTask = dependencyAnalyzer.registerAndroidResAnalysisTask()
