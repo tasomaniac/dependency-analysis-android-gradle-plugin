@@ -31,15 +31,21 @@ tasks.withType<KotlinCompile>().configureEach {
 }
 
 // https://docs.gradle.org/current/userguide/antlr_plugin.html
+// https://discuss.gradle.org/t/using-gradle-2-10s-antlr-plugin-to-import-an-antlr-4-lexer-grammar-into-another-grammar/14970/6
 tasks.generateGrammarSource {
     /*
      * Ignore implied package structure for .g4 files and instead use this for all generated source.
      */
     val pkg = "com.autonomousapps.internal.grammar"
-    outputDirectory = file("$buildDir/generated-src/antlr/main/${pkg.replace('.', '/')}")
+    val dir = pkg.replace(".", "/")
+    outputDirectory = file("$buildDir/generated-src/antlr/main/$dir")
     arguments = arguments + listOf(
+        // Specify the package declaration for generated Java source
         "-package", pkg,
-        "-Xexact-output-dir"
+        // Specify that generated Java source should go into the outputDirectory, regardless of package structure
+        "-Xexact-output-dir",
+        // Specify the location of "libs"; i.e., for grammars composed of multiple files
+        "-lib", "src/main/antlr/$dir"
     )
 }
 

@@ -650,7 +650,7 @@ StringLiteral
 
 fragment
 EscapeSequence
-    :   '\\' ('b'|'t'|'n'|'f'|'r'|'\"'|'\''|'\\')
+    :   '\\' [btnfr"'\\]
     |   UnicodeEscape
     |   OctalEscape
     ;

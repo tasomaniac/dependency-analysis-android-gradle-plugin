@@ -251,9 +251,10 @@ class DependencyAnalysisPlugin : Plugin<Project> {
             inlineUsageReport.set(layout.buildDirectory.file(getInlineUsagePath(variantName)))
         }
 
-        val constantTask = tasks.register<JavaConstantFinderTask>("javaConstantFinder$variantTaskName") {
+        val constantTask = tasks.register<ConstantUsageDetectionTask>("constantUsageDetector$variantTaskName") {
             artifacts.set(artifactsReportTask.flatMap { it.output })
             javaSourceFiles.setFrom(dependencyAnalyzer.javaSourceFiles)
+            kotlinSourceFiles.setFrom(dependencyAnalyzer.kotlinSourceFiles)
             constantUsageReport.set(layout.buildDirectory.file(getConstantUsagePath(variantName)))
         }
 
@@ -280,6 +281,7 @@ class DependencyAnalysisPlugin : Plugin<Project> {
             declaredDependencies.set(dependencyReportTask.flatMap { it.output })
             usedClasses.set(analyzeClassesTask.flatMap { it.output })
             usedInlineDependencies.set(inlineTask.flatMap { it.inlineUsageReport })
+            usedConstantDependencies.set(constantTask.flatMap { it.constantUsageReport })
             androidResUsageTask?.let { task ->
                 usedAndroidResDependencies.set(task.flatMap { it.usedAndroidResDependencies })
             }

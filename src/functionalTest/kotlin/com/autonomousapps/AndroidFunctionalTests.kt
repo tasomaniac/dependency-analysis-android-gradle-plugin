@@ -2,7 +2,7 @@ package com.autonomousapps
 
 import com.autonomousapps.fixtures.*
 import com.autonomousapps.utils.*
-import org.junit.Ignore
+import org.junit.Assert
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -10,13 +10,10 @@ import kotlin.test.assertTrue
 @Suppress("FunctionName")
 class AndroidFunctionalTests : AbstractFunctionalTests() {
 
-    // This test currently fails, since Kotlin bytecode doesn't have the same properties as Java bytecode :'(
-    @Ignore
     @Test fun `finds constants in android-kotlin projects`() {
         testMatrix.forEachPrinting { (gradleVersion, agpVersion) ->
             // Given an Android project that uses constants
             val androidProject = androidProjectThatUsesConstants(agpVersion = agpVersion)
-
 
             // When
             build(gradleVersion, androidProject, "buildHealth")
@@ -24,8 +21,9 @@ class AndroidFunctionalTests : AbstractFunctionalTests() {
             // Then
             val actualUnusedDependencies = androidProject.unusedDependenciesFor("app")
             assertTrue("Expected nothing, got $actualUnusedDependencies") {
-                emptySet<String>() == actualUnusedDependencies
+                emptyList<String>() == actualUnusedDependencies
             }
+//            Assert.fail("fuck you")
 
             // Cleanup
             cleanup(androidProject)
