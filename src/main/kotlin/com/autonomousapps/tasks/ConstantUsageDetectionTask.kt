@@ -20,6 +20,7 @@ import org.gradle.workers.WorkParameters
 import org.gradle.workers.WorkerExecutor
 import java.io.File
 import java.io.FileInputStream
+import java.util.stream.Collectors
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
@@ -114,6 +115,13 @@ private class JavaOrKotlinConstantDetector(
             }.filterNot { (_, imports) -> imports.isEmpty() }
             .map { (artifact, imports) -> ComponentWithConstantMembers(artifact.dependency, imports) }
             .toSortedSet()
+            // TODO@tsr remove
+            .onEach {
+                it.imports.filter { it.startsWith("com.autonomousapps") }
+                    .forEach {
+                        println("CANDIDATE: $it")
+                    }
+            }
 
         val javaConstants = JavaConstantUsageFinder(javaSourceFiles, constantImports).find()
         val kotlinConstants = KotlinConstantUsageFinder(kotlinSourceFiles, constantImports).find()
@@ -156,14 +164,16 @@ private class JavaOrKotlinConstantMemberFinder(
                 val constantMembers = constantVisitor.classes
 
                 if (constantMembers.isNotEmpty()) {
-                    listOf(
-                        // import com.myapp.BuildConfig -> BuildConfig.DEBUG
-                        fqcn,
-                        // import com.myapp.BuildConfig.* -> DEBUG
-                        "$fqcn.*",
-                        // import com.myapp.* -> /* Kotlin file with top-level const val declarations */
-                        "${fqcn.substring(0, fqcn.lastIndexOf("."))}.*"
-                    ) + constantMembers.map { name -> "$fqcn.$name" }
+                    listOf(fqcn) + constantMembers.map { name -> "$fqcn.$name" }
+
+//                    listOf(
+//                        // import com.myapp.BuildConfig -> BuildConfig.DEBUG
+//                        fqcn,
+//                        // import com.myapp.BuildConfig.* -> DEBUG
+//                        "$fqcn.*",
+//                        // import com.myapp.* -> /* Kotlin file with top-level const val declarations */
+//                        "${fqcn.substring(0, fqcn.lastIndexOf("."))}.*"
+//                    ) + constantMembers.map { name -> "$fqcn.$name" }
                 } else {
                     emptyList()
                 }
@@ -230,15 +240,16 @@ private class KotlinConstantUsageFinder(
      */
     fun find(): Set<Dependency> {
         return kotlinSourceFiles
-            .flatMap { source -> parseKotlinSourceFileForImports(source) }
-            .flatMap { actualImport -> findActualConstantImports(actualImport) }
+            .map { source -> parseKotlinSourceFileForImports(source) }
+            // TODO@tsr I need the cross-product of the imports and the simple identifiers
+            .mapNotNull { actualImport -> findActualConstantImports(actualImport) }
             .toSet()
     }
 
-    private fun parseKotlinSourceFileForImports(file: File): Set<String> {
+    private fun parseKotlinSourceFileForImports(file: File): Import {
         val parser = newKotlinParser(file)
         val importFinder = walkTree(parser)
-        return importFinder.imports()
+        return Import(importFinder.imports(), importFinder.simpleIdentifiers())
     }
 
     private fun newKotlinParser(file: File): KotlinParser {
@@ -261,14 +272,21 @@ private class KotlinConstantUsageFinder(
      * * `com.myapp.BuildConfig.DEBUG`
      * * `com.myapp.BuildConfig.*`
      */
-    private fun findActualConstantImports(actualImport: String): List<Dependency> {
+    private fun findActualConstantImports(actualImport: Import): Dependency? {
         // TODO@tsr it's a little disturbing there can be multiple matches. An issue with this naive algorithm.
         // TODO@tsr I need to be more intelligent in source parsing. Look at actual identifiers being used and associate those with their star-imports
-        return constantImportCandidates.filter {
-            it.imports.contains(actualImport)
-        }.map {
-            it.dependency
-        }
+
+        // these candidates come from analysis of upstream bytecode (producer)
+        // actualImport is from source code analysis of the current project (consumer)
+        return constantImportCandidates.find { candidate ->
+            actualImport.matches(candidate)
+        }?.dependency
+
+//        return constantImportCandidates.filter {
+//            it.imports.contains(actualImport)
+//        }.map {
+//            it.dependency
+//        }
     }
 }
 
@@ -293,8 +311,10 @@ private class JavaImportFinder : JavaBaseListener() {
 private class KotlinImportFinder : KotlinParserBaseListener() {
 
     private val imports = mutableSetOf<String>()
+    private val simpleIdentifiers = mutableSetOf<String>()
 
     internal fun imports(): Set<String> = imports
+    internal fun simpleIdentifiers(): Set<String> = simpleIdentifiers
 
     override fun enterImportHeader(ctx: KotlinParser.ImportHeaderContext) {
         val qualifiedName = ctx.identifier().text
@@ -307,13 +327,31 @@ private class KotlinImportFinder : KotlinParserBaseListener() {
         imports.add(import)
     }
 
-    override fun enterIdentifier(ctx: KotlinParser.IdentifierContext) {
-        System.err.println("Identifier: ${ctx.text}")
-    }
-
     override fun enterSimpleIdentifier(ctx: KotlinParser.SimpleIdentifierContext) {
-        // TODO@tsr this will find top-level declarations
-        System.err.println("Simple Identifier: ${ctx.text}")
+        // This will find usages of top-level declarations
+        simpleIdentifiers.add(ctx.text)
+    }
+}
+
+private class Import(val imports: Set<String>, val simpleIdentifiers: Set<String>) {
+
+    private val intersection: List<String> =
+        imports.stream()
+            .flatMap { x -> simpleIdentifiers.stream().map { y -> "$x.$y" } }
+            .collect(Collectors.toList()).onEach {
+                println("INTERSECTION: $it")
+            }
+
+
+    fun matches(candidate: ComponentWithConstantMembers): Boolean {
+        return candidate.imports.any { candidateImport ->
+            val exactMatch = imports.contains(candidateImport)
+            if (!exactMatch) {
+                intersection.contains(candidateImport)
+            } else {
+                exactMatch
+            }
+        }
     }
 }
 
