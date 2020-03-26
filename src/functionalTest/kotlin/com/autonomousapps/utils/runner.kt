@@ -22,11 +22,17 @@ internal fun runner(
   gradleVersion: GradleVersion,
   projectDirProvider: ProjectDirProvider,
   vararg args: String
-): GradleRunner = GradleRunner.create().apply {
-  forwardOutput()
-  withPluginClasspath()
-  withGradleVersion(gradleVersion.version)
-  withProjectDir(projectDirProvider.projectDir)
-  withArguments(*args)
-  //withDebug(true)
+): GradleRunner {
+
+  val dir = projectDirProvider.projectDir
+  dir.resolve("gradle.properties").writeText("org.gradle.java.home=/Users/trobalik/.sdkman/candidates/java/8.0.242-zulu/bin")
+
+  return GradleRunner.create().apply {
+    forwardOutput()
+    withPluginClasspath()
+    withGradleVersion(gradleVersion.version)
+    withProjectDir(dir)
+    withArguments(*args)
+    //withDebug(true)
+  }
 }
